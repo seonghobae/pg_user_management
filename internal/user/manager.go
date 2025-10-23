@@ -128,13 +128,14 @@ func (m *Manager) DeleteUser(username string) error {
 func (m *Manager) ListUsers() ([]map[string]interface{}, error) {
 	query := `
 		SELECT
-			usename as username,
-			usesuper as is_superuser,
-			usecreatedb as can_create_db,
-			usecreaterole as can_create_role
-		FROM pg_user
-		WHERE usename NOT LIKE 'pg_%'
-		ORDER BY usename
+			rolname as username,
+			rolsuper as is_superuser,
+			rolcreatedb as can_create_db,
+			rolcreaterole as can_create_role
+		FROM pg_roles
+		WHERE rolname NOT LIKE 'pg_%'
+		AND rolcanlogin = true
+		ORDER BY rolname
 	`
 
 	rows, err := m.db.Query(query)
