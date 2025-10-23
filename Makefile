@@ -21,13 +21,15 @@ help:
 	@echo "PostgreSQL User Management Admin Tool - Makefile"
 	@echo ""
 	@echo "Available targets:"
-	@echo "  build        Build the binary for current platform"
-	@echo "  build-all    Build binaries for all platforms"
-	@echo "  clean        Remove build artifacts"
-	@echo "  install      Install the binary to GOPATH/bin"
-	@echo "  test         Run tests"
-	@echo "  tidy         Tidy go.mod"
-	@echo "  help         Show this help message"
+	@echo "  build          Build the binary for current platform"
+	@echo "  build-all      Build binaries for all platforms"
+	@echo "  clean          Remove build artifacts"
+	@echo "  install        Install the binary to GOPATH/bin"
+	@echo "  test           Run unit tests"
+	@echo "  test-coverage  Run tests with coverage report"
+	@echo "  test-integration Run integration tests (requires PostgreSQL)"
+	@echo "  tidy           Tidy go.mod"
+	@echo "  help           Show this help message"
 
 build:
 	@echo "Building $(BINARY_NAME)..."
@@ -69,8 +71,20 @@ install: build
 	@echo "Install complete"
 
 test:
-	@echo "Running tests..."
+	@echo "Running unit tests..."
 	$(GOTEST) -v ./...
+
+test-coverage:
+	@echo "Running tests with coverage..."
+	$(GOTEST) -coverprofile=coverage.out ./...
+	$(GOCMD) tool cover -html=coverage.out -o coverage.html
+	@echo "Coverage report generated: coverage.html"
+	$(GOCMD) tool cover -func=coverage.out | grep total
+
+test-integration:
+	@echo "Running integration tests..."
+	@echo "Make sure PostgreSQL is running and PGPASSWORD is set"
+	$(GOTEST) -tags=integration -v ./test/
 
 tidy:
 	@echo "Tidying go.mod..."
