@@ -8,6 +8,7 @@ import (
 
 	"github.com/seonghobae/pg_user_management/internal/auth"
 	"github.com/seonghobae/pg_user_management/internal/database"
+	"github.com/seonghobae/pg_user_management/internal/hba"
 	"github.com/seonghobae/pg_user_management/internal/permission"
 	"github.com/seonghobae/pg_user_management/internal/user"
 	"github.com/seonghobae/pg_user_management/pkg/config"
@@ -36,6 +37,14 @@ func main() {
 		revokeCmd()
 	case "list-privileges":
 		listPrivilegesCmd()
+	case "hba-add":
+		hbaAddCmd()
+	case "hba-remove":
+		hbaRemoveCmd()
+	case "hba-list":
+		hbaListCmd()
+	case "hba-reload":
+		hbaReloadCmd()
 	case "help":
 		printUsage()
 	default:
@@ -383,6 +392,132 @@ func listPrivilegesCmd() {
 	}
 }
 
+func hbaAddCmd() {
+	fs := flag.NewFlagSet("hba-add", flag.ExitOnError)
+	connType := fs.String("type", "host", "Connection type (local, host, hostssl, hostnossl)")
+	database := fs.String("database", "all", "Database name")
+	username := fs.String("user", "", "Username (required)")
+	address := fs.String("address", "", "Address/CIDR (required for host types)")
+	method := fs.String("method", "scram-sha-256", "Authentication method (md5, scram-sha-256, trust, etc.)")
+	hbaFile := fs.String("hba-file", "/etc/postgresql/16/main/pg_hba.conf", "Path to pg_hba.conf")
+
+	fs.Parse(os.Args[2:])
+
+	if *username == "" {
+		fmt.Println("Error: user is required")
+		fs.PrintDefaults()
+		os.Exit(1)
+	}
+
+	if (*connType == "host" || *connType == "hostssl" || *connType == "hostnossl") && *address == "" {
+		fmt.Println("Error: address is required for host connection types")
+		fs.PrintDefaults()
+		os.Exit(1)
+	}
+
+	hbaMgr := hba.NewManager(*hbaFile)
+
+	rule := hba.Rule{
+		Type:     hba.ConnectionType(*connType),
+		Database: *database,
+		User:     *username,
+		Address:  *address,
+		Method:   hba.AuthMethod(*method),
+	}
+
+	if err := hbaMgr.AddRule(rule); err != nil {
+		fmt.Printf("Error adding HBA rule: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Println("Successfully added HBA rule")
+	fmt.Println("Remember to reload PostgreSQL configuration: pg_user_admin hba-reload")
+}
+
+func hbaRemoveCmd() {
+	fs := flag.NewFlagSet("hba-remove", flag.ExitOnError)
+	connType := fs.String("type", "host", "Connection type")
+	database := fs.String("database", "all", "Database name")
+	username := fs.String("user", "", "Username (required)")
+	address := fs.String("address", "", "Address/CIDR")
+	method := fs.String("method", "scram-sha-256", "Authentication method")
+	hbaFile := fs.String("hba-file", "/etc/postgresql/16/main/pg_hba.conf", "Path to pg_hba.conf")
+
+	fs.Parse(os.Args[2:])
+
+	if *username == "" {
+		fmt.Println("Error: user is required")
+		fs.PrintDefaults()
+		os.Exit(1)
+	}
+
+	hbaMgr := hba.NewManager(*hbaFile)
+
+	rule := hba.Rule{
+		Type:     hba.ConnectionType(*connType),
+		Database: *database,
+		User:     *username,
+		Address:  *address,
+		Method:   hba.AuthMethod(*method),
+	}
+
+	if err := hbaMgr.RemoveRule(rule); err != nil {
+		fmt.Printf("Error removing HBA rule: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Println("Successfully removed HBA rule")
+	fmt.Println("Remember to reload PostgreSQL configuration: pg_user_admin hba-reload")
+}
+
+func hbaListCmd() {
+	fs := flag.NewFlagSet("hba-list", flag.ExitOnError)
+	hbaFile := fs.String("hba-file", "/etc/postgresql/16/main/pg_hba.conf", "Path to pg_hba.conf")
+
+	fs.Parse(os.Args[2:])
+
+	hbaMgr := hba.NewManager(*hbaFile)
+
+	rules, err := hbaMgr.ReadRules()
+	if err != nil {
+		fmt.Printf("Error reading HBA rules: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Println("PostgreSQL HBA Rules:")
+	fmt.Println("==================================================")
+	for i, rule := range rules {
+		if rule.IsComment {
+			fmt.Printf("%d. %s\n", i+1, rule.Comment)
+		} else {
+			fmt.Printf("%d. TYPE: %s, DATABASE: %s, USER: %s, ADDRESS: %s, METHOD: %s\n",
+				i+1, rule.Type, rule.Database, rule.User, rule.Address, rule.Method)
+			if rule.Options != "" {
+				fmt.Printf("   OPTIONS: %s\n", rule.Options)
+			}
+		}
+	}
+}
+
+func hbaReloadCmd() {
+	_, db, err := connectDB()
+	if err != nil {
+		fmt.Printf("Error connecting to database: %v\n", err)
+		os.Exit(1)
+	}
+	defer db.Close()
+
+	reloader := hba.NewReloader(db.DB)
+
+	if err := reloader.ReloadAndVerify(); err != nil {
+		fmt.Printf("Error reloading PostgreSQL configuration: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Println("Successfully reloaded PostgreSQL configuration")
+	fmt.Println("HBA rules are now active")
+}
+
 func connectDB() (*config.Config, *database.DB, error) {
 	cfg, err := config.NewConfig()
 	if err != nil {
@@ -411,6 +546,10 @@ func printUsage() {
 	fmt.Println("  grant             Grant privileges to a user")
 	fmt.Println("  revoke            Revoke privileges from a user")
 	fmt.Println("  list-privileges   List privileges for a user")
+	fmt.Println("  hba-add           Add a rule to pg_hba.conf")
+	fmt.Println("  hba-remove        Remove a rule from pg_hba.conf")
+	fmt.Println("  hba-list          List all rules in pg_hba.conf")
+	fmt.Println("  hba-reload        Reload PostgreSQL configuration")
 	fmt.Println("  help              Show this help message")
 	fmt.Println("")
 	fmt.Println("Examples:")

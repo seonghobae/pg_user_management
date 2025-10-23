@@ -21,7 +21,13 @@ PostgreSQL 사용자 및 권한을 관리하기 위한 CLI 도구입니다.
    - 특정 테이블 또는 스키마 내 모든 테이블에 권한 부여
    - 스키마 내 모든 함수에 EXECUTE 권한 자동 부여
 
-4. **세부 권한 제어**
+4. **pg_hba.conf 관리** ⭐ NEW!
+   - HBA 규칙 추가/삭제
+   - HBA 규칙 목록 조회
+   - PostgreSQL 설정 자동 리로드
+   - 백업 자동 생성
+
+5. **세부 권한 제어**
    - 테이블별 세부 권한 설정
    - 함수에 대한 전체 액세스 권한
 
@@ -158,6 +164,33 @@ Superuser 권한 제거:
 
 ```bash
 ./pg_user_admin list-privileges -username=myuser
+```
+
+### 8. pg_hba.conf 관리
+
+HBA 규칙 목록 조회:
+```bash
+./pg_user_admin hba-list
+```
+
+HBA 규칙 추가 (특정 네트워크에서 사용자 접속 허용):
+```bash
+./pg_user_admin hba-add -user=myuser -database=mydb -address=192.168.1.0/24 -method=scram-sha-256 -type=host
+```
+
+HBA 규칙 추가 (로컬 연결):
+```bash
+./pg_user_admin hba-add -user=myuser -database=mydb -method=scram-sha-256 -type=local
+```
+
+HBA 규칙 삭제:
+```bash
+./pg_user_admin hba-remove -user=myuser -database=mydb -address=192.168.1.0/24 -method=scram-sha-256 -type=host
+```
+
+PostgreSQL 설정 리로드 (HBA 규칙 활성화):
+```bash
+./pg_user_admin hba-reload
 ```
 
 ## 일반적인 사용 시나리오
