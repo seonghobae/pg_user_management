@@ -97,6 +97,11 @@ func (m *Manager) DeleteRole(roleName string) error {
 // DeleteRoleWithOptions deletes a PostgreSQL role with transactional cleanup
 // Supports REASSIGN OWNED and DROP OWNED to handle role dependencies
 func (m *Manager) DeleteRoleWithOptions(opts DeleteRoleOptions) error {
+	// Validate that ReassignTo is different from the role being deleted
+	if opts.ReassignTo != "" && opts.ReassignTo == opts.RoleName {
+		return fmt.Errorf("cannot reassign objects to the same role being deleted (%s)", opts.RoleName)
+	}
+
 	// Start a transaction for atomic cleanup + deletion
 	tx, err := m.db.Begin()
 	if err != nil {
