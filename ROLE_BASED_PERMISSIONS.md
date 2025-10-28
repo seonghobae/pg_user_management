@@ -230,7 +230,8 @@ Role은 계층적으로 구성할 수 있습니다:
 ```
 
 Output:
-```
+
+```text
 PostgreSQL Roles:
 --------------------------------------------------
 Role: app_readonly
@@ -251,7 +252,8 @@ Role: app_readwrite
 ```
 
 Output:
-```
+
+```text
 Members of role 'app_readonly':
 --------------------------------------------------
   - app_user1
@@ -266,7 +268,8 @@ Members of role 'app_readonly':
 ```
 
 Output:
-```
+
+```text
 Roles granted to user 'app_user1':
 --------------------------------------------------
   - app_readonly
