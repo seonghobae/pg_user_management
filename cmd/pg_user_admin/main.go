@@ -548,6 +548,12 @@ func createRoleCmd() {
 		os.Exit(1)
 	}
 
+	// Reject role names starting with pg_ (PostgreSQL system prefix)
+	if strings.HasPrefix(*roleName, "pg_") {
+		fmt.Printf("Error: role names starting with 'pg_' are reserved for PostgreSQL system roles\n")
+		os.Exit(1)
+	}
+
 	if *canLogin && *password == "" {
 		fmt.Println("Error: password is required when login is enabled")
 		fs.PrintDefaults()
@@ -593,6 +599,12 @@ func deleteRoleCmd() {
 	if *roleName == "" {
 		fmt.Println("Error: rolename is required")
 		fs.PrintDefaults()
+		os.Exit(1)
+	}
+
+	// Validate that reassign-to is different from the role being deleted
+	if *reassignTo != "" && *reassignTo == *roleName {
+		fmt.Printf("Error: cannot reassign objects to the same role being deleted (%s)\n", *roleName)
 		os.Exit(1)
 	}
 

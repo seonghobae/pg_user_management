@@ -69,6 +69,22 @@ type DeleteRoleOptions struct {
 // Note: This will fail if the role owns objects or has granted privileges.
 // Use DeleteRoleWithOptions for safe deletion with cleanup.
 func (m *Manager) DeleteRole(roleName string) error {
+	// Check if the role has any members before deletion
+	var memberCount int
+	checkMembersQuery := `
+		SELECT COUNT(*)
+		FROM pg_auth_members
+		JOIN pg_roles AS role ON pg_auth_members.roleid = role.oid
+		WHERE role.rolname = $1
+	`
+	if err := m.db.QueryRow(checkMembersQuery, roleName).Scan(&memberCount); err != nil {
+		return fmt.Errorf("failed to check role members: %w", err)
+	}
+	if memberCount > 0 {
+		return fmt.Errorf("role %s still has %d member(s); revoke them before deletion using revoke-role command",
+			roleName, memberCount)
+	}
+
 	query := fmt.Sprintf("DROP ROLE %s", quoteIdentifier(roleName))
 
 	if _, err := m.db.Exec(query); err != nil {
@@ -100,11 +116,28 @@ func (m *Manager) DeleteRoleWithOptions(opts DeleteRoleOptions) error {
 
 	// If DropOwned is true, drop all objects owned by the role
 	if opts.DropOwned {
-		dropOwnedQuery := fmt.Sprintf("DROP OWNED BY %s",
+		// Use CASCADE to handle dependent objects
+		dropOwnedQuery := fmt.Sprintf("DROP OWNED BY %s CASCADE",
 			quoteIdentifier(opts.RoleName))
 		if _, err := tx.Exec(dropOwnedQuery); err != nil {
 			return fmt.Errorf("failed to drop owned objects: %w", err)
 		}
+	}
+
+	// Check if the role has any members before deletion
+	var memberCount int
+	checkMembersQuery := `
+		SELECT COUNT(*)
+		FROM pg_auth_members
+		JOIN pg_roles AS role ON pg_auth_members.roleid = role.oid
+		WHERE role.rolname = $1
+	`
+	if err := tx.QueryRow(checkMembersQuery, opts.RoleName).Scan(&memberCount); err != nil {
+		return fmt.Errorf("failed to check role members: %w", err)
+	}
+	if memberCount > 0 {
+		return fmt.Errorf("role %s still has %d member(s); revoke them before deletion using revoke-role command",
+			opts.RoleName, memberCount)
 	}
 
 	// Finally, drop the role
@@ -268,17 +301,4 @@ func quoteIdentifier(name string) string {
 	// Escape any double quotes in the identifier by doubling them
 	escaped := strings.ReplaceAll(name, `"`, `""`)
 	return fmt.Sprintf(`"%s"`, escaped)
-}
-
-// escapeString escapes single quotes in a string
-func escapeString(s string) string {
-	result := ""
-	for _, c := range s {
-		if c == '\'' {
-			result += "''"
-		} else {
-			result += string(c)
-		}
-	}
-	return result
 }
