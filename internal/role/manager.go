@@ -1,0 +1,203 @@
+package role
+
+import (
+	"database/sql"
+	"fmt"
+)
+
+// Manager handles PostgreSQL role operations
+type Manager struct {
+	db *sql.DB
+}
+
+// NewManager creates a new role manager
+func NewManager(db *sql.DB) *Manager {
+	return &Manager{db: db}
+}
+
+// RoleOptions contains options for role creation
+type RoleOptions struct {
+	RoleName    string
+	CanLogin    bool
+	IsSuperuser bool
+	Password    string
+}
+
+// CreateRole creates a new PostgreSQL role (typically a group role with NOLOGIN)
+func (m *Manager) CreateRole(opts RoleOptions) error {
+	query := fmt.Sprintf("CREATE ROLE %s", quoteIdentifier(opts.RoleName))
+
+	if opts.CanLogin {
+		query += " LOGIN"
+		if opts.Password != "" {
+			query += fmt.Sprintf(" PASSWORD '%s'", escapeString(opts.Password))
+		}
+	} else {
+		query += " NOLOGIN"
+	}
+
+	if opts.IsSuperuser {
+		query += " SUPERUSER"
+	}
+
+	if _, err := m.db.Exec(query); err != nil {
+		return fmt.Errorf("failed to create role: %w", err)
+	}
+
+	return nil
+}
+
+// DeleteRole deletes a PostgreSQL role
+func (m *Manager) DeleteRole(roleName string) error {
+	query := fmt.Sprintf("DROP ROLE %s", quoteIdentifier(roleName))
+
+	if _, err := m.db.Exec(query); err != nil {
+		return fmt.Errorf("failed to delete role: %w", err)
+	}
+
+	return nil
+}
+
+// GrantRole grants a role to a user (adds user to role group)
+func (m *Manager) GrantRole(roleName, username string) error {
+	query := fmt.Sprintf("GRANT %s TO %s",
+		quoteIdentifier(roleName),
+		quoteIdentifier(username))
+
+	if _, err := m.db.Exec(query); err != nil {
+		return fmt.Errorf("failed to grant role: %w", err)
+	}
+
+	return nil
+}
+
+// RevokeRole revokes a role from a user (removes user from role group)
+func (m *Manager) RevokeRole(roleName, username string) error {
+	query := fmt.Sprintf("REVOKE %s FROM %s",
+		quoteIdentifier(roleName),
+		quoteIdentifier(username))
+
+	if _, err := m.db.Exec(query); err != nil {
+		return fmt.Errorf("failed to revoke role: %w", err)
+	}
+
+	return nil
+}
+
+// ListRoles lists all roles (excluding system roles)
+func (m *Manager) ListRoles() ([]map[string]interface{}, error) {
+	query := `
+		SELECT
+			rolname as role_name,
+			rolsuper as is_superuser,
+			rolcanlogin as can_login,
+			rolconnlimit as connection_limit
+		FROM pg_roles
+		WHERE rolname NOT LIKE 'pg_%'
+		AND rolname != 'postgres'
+		ORDER BY rolname
+	`
+
+	rows, err := m.db.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list roles: %w", err)
+	}
+	defer rows.Close()
+
+	var roles []map[string]interface{}
+	for rows.Next() {
+		var roleName string
+		var isSuperuser, canLogin bool
+		var connLimit int
+
+		if err := rows.Scan(&roleName, &isSuperuser, &canLogin, &connLimit); err != nil {
+			return nil, fmt.Errorf("failed to scan role: %w", err)
+		}
+
+		role := map[string]interface{}{
+			"role_name":         roleName,
+			"is_superuser":      isSuperuser,
+			"can_login":         canLogin,
+			"connection_limit":  connLimit,
+		}
+		roles = append(roles, role)
+	}
+
+	return roles, nil
+}
+
+// ListRoleMembers lists all members of a specific role
+func (m *Manager) ListRoleMembers(roleName string) ([]string, error) {
+	query := `
+		SELECT member.rolname
+		FROM pg_auth_members
+		JOIN pg_roles AS member ON pg_auth_members.member = member.oid
+		JOIN pg_roles AS role ON pg_auth_members.roleid = role.oid
+		WHERE role.rolname = $1
+		ORDER BY member.rolname
+	`
+
+	rows, err := m.db.Query(query, roleName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list role members: %w", err)
+	}
+	defer rows.Close()
+
+	var members []string
+	for rows.Next() {
+		var memberName string
+		if err := rows.Scan(&memberName); err != nil {
+			return nil, fmt.Errorf("failed to scan member: %w", err)
+		}
+		members = append(members, memberName)
+	}
+
+	return members, nil
+}
+
+// ListUserRoles lists all roles granted to a specific user
+func (m *Manager) ListUserRoles(username string) ([]string, error) {
+	query := `
+		SELECT role.rolname
+		FROM pg_auth_members
+		JOIN pg_roles AS member ON pg_auth_members.member = member.oid
+		JOIN pg_roles AS role ON pg_auth_members.roleid = role.oid
+		WHERE member.rolname = $1
+		ORDER BY role.rolname
+	`
+
+	rows, err := m.db.Query(query, username)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list user roles: %w", err)
+	}
+	defer rows.Close()
+
+	var roles []string
+	for rows.Next() {
+		var roleName string
+		if err := rows.Scan(&roleName); err != nil {
+			return nil, fmt.Errorf("failed to scan role: %w", err)
+		}
+		roles = append(roles, roleName)
+	}
+
+	return roles, nil
+}
+
+// quoteIdentifier quotes an identifier to prevent SQL injection
+func quoteIdentifier(name string) string {
+	return fmt.Sprintf(`"%s"`, name)
+}
+
+// escapeString escapes single quotes in a string
+func escapeString(s string) string {
+	result := ""
+	for _, c := range s {
+		if c == '\'' {
+			result += "''"
+		} else {
+			result += string(c)
+		}
+	}
+	return result
+}

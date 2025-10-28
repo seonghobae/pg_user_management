@@ -10,6 +10,7 @@ import (
 	"github.com/seonghobae/pg_user_management/internal/database"
 	"github.com/seonghobae/pg_user_management/internal/hba"
 	"github.com/seonghobae/pg_user_management/internal/permission"
+	"github.com/seonghobae/pg_user_management/internal/role"
 	"github.com/seonghobae/pg_user_management/internal/user"
 	"github.com/seonghobae/pg_user_management/pkg/config"
 )
@@ -45,6 +46,20 @@ func main() {
 		hbaListCmd()
 	case "hba-reload":
 		hbaReloadCmd()
+	case "create-role":
+		createRoleCmd()
+	case "delete-role":
+		deleteRoleCmd()
+	case "list-roles":
+		listRolesCmd()
+	case "grant-role":
+		grantRoleCmd()
+	case "revoke-role":
+		revokeRoleCmd()
+	case "list-role-members":
+		listRoleMembersCmd()
+	case "list-user-roles":
+		listUserRolesCmd()
 	case "help":
 		printUsage()
 	default:
@@ -518,6 +533,247 @@ func hbaReloadCmd() {
 	fmt.Println("HBA rules are now active")
 }
 
+func createRoleCmd() {
+	fs := flag.NewFlagSet("create-role", flag.ExitOnError)
+	roleName := fs.String("rolename", "", "Role name to create (required)")
+	canLogin := fs.Bool("login", false, "Allow login (creates a user role)")
+	password := fs.String("password", "", "Password (only if login is true)")
+	isSuperuser := fs.Bool("superuser", false, "Create as superuser")
+
+	fs.Parse(os.Args[2:])
+
+	if *roleName == "" {
+		fmt.Println("Error: rolename is required")
+		fs.PrintDefaults()
+		os.Exit(1)
+	}
+
+	if *canLogin && *password == "" {
+		fmt.Println("Error: password is required when login is enabled")
+		fs.PrintDefaults()
+		os.Exit(1)
+	}
+
+	_, db, err := connectDB()
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		os.Exit(1)
+	}
+	defer db.Close()
+
+	roleMgr := role.NewManager(db.DB)
+
+	opts := role.RoleOptions{
+		RoleName:    *roleName,
+		CanLogin:    *canLogin,
+		Password:    *password,
+		IsSuperuser: *isSuperuser,
+	}
+
+	if err := roleMgr.CreateRole(opts); err != nil {
+		fmt.Printf("Error creating role: %v\n", err)
+		os.Exit(1)
+	}
+
+	roleType := "group role (NOLOGIN)"
+	if *canLogin {
+		roleType = "user role (LOGIN)"
+	}
+	fmt.Printf("Successfully created %s: %s\n", roleType, *roleName)
+}
+
+func deleteRoleCmd() {
+	fs := flag.NewFlagSet("delete-role", flag.ExitOnError)
+	roleName := fs.String("rolename", "", "Role name to delete (required)")
+
+	fs.Parse(os.Args[2:])
+
+	if *roleName == "" {
+		fmt.Println("Error: rolename is required")
+		fs.PrintDefaults()
+		os.Exit(1)
+	}
+
+	_, db, err := connectDB()
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		os.Exit(1)
+	}
+	defer db.Close()
+
+	roleMgr := role.NewManager(db.DB)
+
+	if err := roleMgr.DeleteRole(*roleName); err != nil {
+		fmt.Printf("Error deleting role: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("Successfully deleted role: %s\n", *roleName)
+}
+
+func listRolesCmd() {
+	_, db, err := connectDB()
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		os.Exit(1)
+	}
+	defer db.Close()
+
+	roleMgr := role.NewManager(db.DB)
+
+	roles, err := roleMgr.ListRoles()
+	if err != nil {
+		fmt.Printf("Error listing roles: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Println("PostgreSQL Roles:")
+	fmt.Println("--------------------------------------------------")
+	for _, r := range roles {
+		fmt.Printf("Role: %s\n", r["role_name"])
+		fmt.Printf("  Can Login: %v\n", r["can_login"])
+		fmt.Printf("  Superuser: %v\n", r["is_superuser"])
+		fmt.Printf("  Connection Limit: %v\n", r["connection_limit"])
+		fmt.Println()
+	}
+}
+
+func grantRoleCmd() {
+	fs := flag.NewFlagSet("grant-role", flag.ExitOnError)
+	roleName := fs.String("rolename", "", "Role name to grant (required)")
+	username := fs.String("username", "", "Username to receive the role (required)")
+
+	fs.Parse(os.Args[2:])
+
+	if *roleName == "" || *username == "" {
+		fmt.Println("Error: both rolename and username are required")
+		fs.PrintDefaults()
+		os.Exit(1)
+	}
+
+	_, db, err := connectDB()
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		os.Exit(1)
+	}
+	defer db.Close()
+
+	roleMgr := role.NewManager(db.DB)
+
+	if err := roleMgr.GrantRole(*roleName, *username); err != nil {
+		fmt.Printf("Error granting role: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("Successfully granted role %s to user %s\n", *roleName, *username)
+}
+
+func revokeRoleCmd() {
+	fs := flag.NewFlagSet("revoke-role", flag.ExitOnError)
+	roleName := fs.String("rolename", "", "Role name to revoke (required)")
+	username := fs.String("username", "", "Username to revoke from (required)")
+
+	fs.Parse(os.Args[2:])
+
+	if *roleName == "" || *username == "" {
+		fmt.Println("Error: both rolename and username are required")
+		fs.PrintDefaults()
+		os.Exit(1)
+	}
+
+	_, db, err := connectDB()
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		os.Exit(1)
+	}
+	defer db.Close()
+
+	roleMgr := role.NewManager(db.DB)
+
+	if err := roleMgr.RevokeRole(*roleName, *username); err != nil {
+		fmt.Printf("Error revoking role: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("Successfully revoked role %s from user %s\n", *roleName, *username)
+}
+
+func listRoleMembersCmd() {
+	fs := flag.NewFlagSet("list-role-members", flag.ExitOnError)
+	roleName := fs.String("rolename", "", "Role name (required)")
+
+	fs.Parse(os.Args[2:])
+
+	if *roleName == "" {
+		fmt.Println("Error: rolename is required")
+		fs.PrintDefaults()
+		os.Exit(1)
+	}
+
+	_, db, err := connectDB()
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		os.Exit(1)
+	}
+	defer db.Close()
+
+	roleMgr := role.NewManager(db.DB)
+
+	members, err := roleMgr.ListRoleMembers(*roleName)
+	if err != nil {
+		fmt.Printf("Error listing role members: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("Members of role '%s':\n", *roleName)
+	fmt.Println("--------------------------------------------------")
+	if len(members) == 0 {
+		fmt.Println("No members found")
+	} else {
+		for _, member := range members {
+			fmt.Printf("  - %s\n", member)
+		}
+	}
+}
+
+func listUserRolesCmd() {
+	fs := flag.NewFlagSet("list-user-roles", flag.ExitOnError)
+	username := fs.String("username", "", "Username (required)")
+
+	fs.Parse(os.Args[2:])
+
+	if *username == "" {
+		fmt.Println("Error: username is required")
+		fs.PrintDefaults()
+		os.Exit(1)
+	}
+
+	_, db, err := connectDB()
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		os.Exit(1)
+	}
+	defer db.Close()
+
+	roleMgr := role.NewManager(db.DB)
+
+	roles, err := roleMgr.ListUserRoles(*username)
+	if err != nil {
+		fmt.Printf("Error listing user roles: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("Roles granted to user '%s':\n", *username)
+	fmt.Println("--------------------------------------------------")
+	if len(roles) == 0 {
+		fmt.Println("No roles found")
+	} else {
+		for _, role := range roles {
+			fmt.Printf("  - %s\n", role)
+		}
+	}
+}
+
 func connectDB() (*config.Config, *database.DB, error) {
 	cfg, err := config.NewConfig()
 	if err != nil {
@@ -539,17 +795,32 @@ func printUsage() {
 	fmt.Println("  pg_user_admin <command> [options]")
 	fmt.Println("")
 	fmt.Println("Commands:")
-	fmt.Println("  create-user       Create a new PostgreSQL user")
-	fmt.Println("  modify-user       Modify an existing PostgreSQL user")
-	fmt.Println("  delete-user       Delete a PostgreSQL user")
-	fmt.Println("  list-users        List all PostgreSQL users")
-	fmt.Println("  grant             Grant privileges to a user")
-	fmt.Println("  revoke            Revoke privileges from a user")
-	fmt.Println("  list-privileges   List privileges for a user")
-	fmt.Println("  hba-add           Add a rule to pg_hba.conf")
-	fmt.Println("  hba-remove        Remove a rule from pg_hba.conf")
-	fmt.Println("  hba-list          List all rules in pg_hba.conf")
-	fmt.Println("  hba-reload        Reload PostgreSQL configuration")
+	fmt.Println("  User Management:")
+	fmt.Println("    create-user       Create a new PostgreSQL user")
+	fmt.Println("    modify-user       Modify an existing PostgreSQL user")
+	fmt.Println("    delete-user       Delete a PostgreSQL user")
+	fmt.Println("    list-users        List all PostgreSQL users")
+	fmt.Println("")
+	fmt.Println("  Role Management (PostgreSQL's native permission system):")
+	fmt.Println("    create-role       Create a new role (group)")
+	fmt.Println("    delete-role       Delete a role")
+	fmt.Println("    list-roles        List all roles")
+	fmt.Println("    grant-role        Grant a role to a user")
+	fmt.Println("    revoke-role       Revoke a role from a user")
+	fmt.Println("    list-role-members List all members of a role")
+	fmt.Println("    list-user-roles   List all roles granted to a user")
+	fmt.Println("")
+	fmt.Println("  Permission Management:")
+	fmt.Println("    grant             Grant privileges to a user or role")
+	fmt.Println("    revoke            Revoke privileges from a user or role")
+	fmt.Println("    list-privileges   List privileges for a user or role")
+	fmt.Println("")
+	fmt.Println("  HBA Configuration:")
+	fmt.Println("    hba-add           Add a rule to pg_hba.conf")
+	fmt.Println("    hba-remove        Remove a rule from pg_hba.conf")
+	fmt.Println("    hba-list          List all rules in pg_hba.conf")
+	fmt.Println("    hba-reload        Reload PostgreSQL configuration")
+	fmt.Println("")
 	fmt.Println("  help              Show this help message")
 	fmt.Println("")
 	fmt.Println("Examples:")
@@ -567,6 +838,12 @@ func printUsage() {
 	fmt.Println("")
 	fmt.Println("  # Grant function access and table privileges")
 	fmt.Println("  pg_user_admin grant -username=myuser -schema=public -privileges=SELECT -grant-functions")
+	fmt.Println("")
+	fmt.Println("  # Create a group role and grant it to users (PostgreSQL standard)")
+	fmt.Println("  pg_user_admin create-role -rolename=app_readonly")
+	fmt.Println("  pg_user_admin grant -username=app_readonly -schema=public -privileges=SELECT -grant-functions")
+	fmt.Println("  pg_user_admin grant-role -rolename=app_readonly -username=user1")
+	fmt.Println("  pg_user_admin grant-role -rolename=app_readonly -username=user2")
 	fmt.Println("")
 	fmt.Println("Environment Variables:")
 	fmt.Println("  PGHOST         PostgreSQL host (default: localhost)")
