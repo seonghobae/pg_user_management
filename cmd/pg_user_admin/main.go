@@ -585,6 +585,8 @@ func createRoleCmd() {
 func deleteRoleCmd() {
 	fs := flag.NewFlagSet("delete-role", flag.ExitOnError)
 	roleName := fs.String("rolename", "", "Role name to delete (required)")
+	reassignTo := fs.String("reassign-to", "", "Reassign owned objects to this role before deletion")
+	dropOwned := fs.Bool("drop-owned", false, "Drop all objects owned by the role before deletion")
 
 	fs.Parse(os.Args[2:])
 
@@ -603,12 +605,29 @@ func deleteRoleCmd() {
 
 	roleMgr := role.NewManager(db.DB)
 
-	if err := roleMgr.DeleteRole(*roleName); err != nil {
-		fmt.Printf("Error deleting role: %v\n", err)
-		os.Exit(1)
+	// Use safe deletion if reassign-to or drop-owned is specified
+	if *reassignTo != "" || *dropOwned {
+		opts := role.DeleteRoleOptions{
+			RoleName:   *roleName,
+			ReassignTo: *reassignTo,
+			DropOwned:  *dropOwned,
+		}
+		if err := roleMgr.DeleteRoleWithOptions(opts); err != nil {
+			fmt.Printf("Error deleting role: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("Successfully deleted role: %s (with cleanup)\n", *roleName)
+	} else {
+		// Simple deletion (may fail if role owns objects)
+		if err := roleMgr.DeleteRole(*roleName); err != nil {
+			fmt.Printf("Error deleting role: %v\n", err)
+			fmt.Println("\nHint: If the role owns objects or has members, use:")
+			fmt.Println("  --reassign-to <role>  to reassign owned objects")
+			fmt.Println("  --drop-owned          to drop owned objects")
+			os.Exit(1)
+		}
+		fmt.Printf("Successfully deleted role: %s\n", *roleName)
 	}
-
-	fmt.Printf("Successfully deleted role: %s\n", *roleName)
 }
 
 func listRolesCmd() {

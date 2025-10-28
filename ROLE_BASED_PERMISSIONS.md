@@ -281,12 +281,54 @@ Roles granted to user 'app_user1':
 
 ### Delete Role
 
+Role 삭제는 다음 3가지 방법이 있습니다:
+
+#### 방법 1: 안전한 삭제 (권장)
+
 ```bash
-# Note: Role에 멤버가 있으면 먼저 revoke해야 함
+# 1단계: 모든 멤버 제거
+./pg_user_admin list-role-members -rolename=app_readonly
 ./pg_user_admin revoke-role -rolename=app_readonly -username=app_user1
 ./pg_user_admin revoke-role -rolename=app_readonly -username=app_user2
+
+# 2단계: Role 삭제
 ./pg_user_admin delete-role -rolename=app_readonly
 ```
+
+#### 방법 2: 소유 객체를 다른 role에 재할당
+
+```bash
+# Role이 소유한 객체(테이블, 함수 등)를 postgres role에 재할당하고 삭제
+./pg_user_admin delete-role -rolename=app_readonly -reassign-to=postgres
+```
+
+이 방법은 다음 SQL을 실행합니다:
+```sql
+BEGIN;
+  REASSIGN OWNED BY app_readonly TO postgres;
+  DROP ROLE app_readonly;
+COMMIT;
+```
+
+#### 방법 3: 소유 객체를 모두 삭제 (주의!)
+
+```bash
+# ⚠️ 경고: Role이 소유한 모든 객체(테이블, 함수 등)가 삭제됩니다!
+./pg_user_admin delete-role -rolename=app_readonly -drop-owned
+```
+
+이 방법은 다음 SQL을 실행합니다:
+```sql
+BEGIN;
+  DROP OWNED BY app_readonly;
+  DROP ROLE app_readonly;
+COMMIT;
+```
+
+**주의사항:**
+- 방법 1이 가장 안전합니다
+- 방법 2는 객체를 보존하면서 소유권을 이전합니다
+- 방법 3은 모든 객체를 삭제하므로 주의해서 사용하세요
 
 ## Best Practices
 

@@ -212,9 +212,18 @@ Superuser 권한 제거:
 ./pg_user_admin list-user-roles -username=user1
 ```
 
-**Role 삭제:**
+**Role 삭제 (안전한 방법):**
 ```bash
+# 방법 1: 멤버 revoke 후 삭제 (가장 안전)
+./pg_user_admin revoke-role -rolename=app_readonly -username=user1
+./pg_user_admin revoke-role -rolename=app_readonly -username=user2
 ./pg_user_admin delete-role -rolename=app_readonly
+
+# 방법 2: 소유 객체를 다른 role에 재할당하고 삭제
+./pg_user_admin delete-role -rolename=app_readonly -reassign-to=postgres
+
+# 방법 3: 소유 객체를 모두 삭제하고 role 삭제 (주의!)
+./pg_user_admin delete-role -rolename=app_readonly -drop-owned
 ```
 
 💡 **왜 Role을 사용해야 하나요?**

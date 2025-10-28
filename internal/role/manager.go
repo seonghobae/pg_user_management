@@ -3,6 +3,7 @@ package role
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 )
 
 // Manager handles PostgreSQL role operations
@@ -25,12 +26,21 @@ type RoleOptions struct {
 
 // CreateRole creates a new PostgreSQL role (typically a group role with NOLOGIN)
 func (m *Manager) CreateRole(opts RoleOptions) error {
+	// Build the base query with properly quoted identifier
 	query := fmt.Sprintf("CREATE ROLE %s", quoteIdentifier(opts.RoleName))
 
 	if opts.CanLogin {
 		query += " LOGIN"
 		if opts.Password != "" {
-			query += fmt.Sprintf(" PASSWORD '%s'", escapeString(opts.Password))
+			// Use parameterized query for password to avoid SQL injection and log leakage
+			query += " PASSWORD $1"
+			if opts.IsSuperuser {
+				query += " SUPERUSER"
+			}
+			if _, err := m.db.Exec(query, opts.Password); err != nil {
+				return fmt.Errorf("failed to create role: %w", err)
+			}
+			return nil
 		}
 	} else {
 		query += " NOLOGIN"
@@ -40,6 +50,7 @@ func (m *Manager) CreateRole(opts RoleOptions) error {
 		query += " SUPERUSER"
 	}
 
+	// Execute without password parameter
 	if _, err := m.db.Exec(query); err != nil {
 		return fmt.Errorf("failed to create role: %w", err)
 	}
@@ -47,12 +58,64 @@ func (m *Manager) CreateRole(opts RoleOptions) error {
 	return nil
 }
 
+// DeleteRoleOptions contains options for safe role deletion
+type DeleteRoleOptions struct {
+	RoleName   string
+	ReassignTo string // If set, reassign owned objects to this role before deletion
+	DropOwned  bool   // If true, drop all objects owned by the role
+}
+
 // DeleteRole deletes a PostgreSQL role
+// Note: This will fail if the role owns objects or has granted privileges.
+// Use DeleteRoleWithOptions for safe deletion with cleanup.
 func (m *Manager) DeleteRole(roleName string) error {
 	query := fmt.Sprintf("DROP ROLE %s", quoteIdentifier(roleName))
 
 	if _, err := m.db.Exec(query); err != nil {
 		return fmt.Errorf("failed to delete role: %w", err)
+	}
+
+	return nil
+}
+
+// DeleteRoleWithOptions deletes a PostgreSQL role with transactional cleanup
+// Supports REASSIGN OWNED and DROP OWNED to handle role dependencies
+func (m *Manager) DeleteRoleWithOptions(opts DeleteRoleOptions) error {
+	// Start a transaction for atomic cleanup + deletion
+	tx, err := m.db.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	// If ReassignTo is specified, reassign all owned objects
+	if opts.ReassignTo != "" {
+		reassignQuery := fmt.Sprintf("REASSIGN OWNED BY %s TO %s",
+			quoteIdentifier(opts.RoleName),
+			quoteIdentifier(opts.ReassignTo))
+		if _, err := tx.Exec(reassignQuery); err != nil {
+			return fmt.Errorf("failed to reassign owned objects: %w", err)
+		}
+	}
+
+	// If DropOwned is true, drop all objects owned by the role
+	if opts.DropOwned {
+		dropOwnedQuery := fmt.Sprintf("DROP OWNED BY %s",
+			quoteIdentifier(opts.RoleName))
+		if _, err := tx.Exec(dropOwnedQuery); err != nil {
+			return fmt.Errorf("failed to drop owned objects: %w", err)
+		}
+	}
+
+	// Finally, drop the role
+	dropRoleQuery := fmt.Sprintf("DROP ROLE %s", quoteIdentifier(opts.RoleName))
+	if _, err := tx.Exec(dropRoleQuery); err != nil {
+		return fmt.Errorf("failed to delete role: %w", err)
+	}
+
+	// Commit the transaction
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
 	return nil
@@ -123,6 +186,11 @@ func (m *Manager) ListRoles() ([]map[string]interface{}, error) {
 		roles = append(roles, role)
 	}
 
+	// Check for errors from iteration
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error during role iteration: %w", err)
+	}
+
 	return roles, nil
 }
 
@@ -150,6 +218,11 @@ func (m *Manager) ListRoleMembers(roleName string) ([]string, error) {
 			return nil, fmt.Errorf("failed to scan member: %w", err)
 		}
 		members = append(members, memberName)
+	}
+
+	// Check for errors from iteration
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error during member iteration: %w", err)
 	}
 
 	return members, nil
@@ -181,12 +254,20 @@ func (m *Manager) ListUserRoles(username string) ([]string, error) {
 		roles = append(roles, roleName)
 	}
 
+	// Check for errors from iteration
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error during user roles iteration: %w", err)
+	}
+
 	return roles, nil
 }
 
 // quoteIdentifier quotes an identifier to prevent SQL injection
+// Escapes embedded double quotes by doubling them per PostgreSQL spec
 func quoteIdentifier(name string) string {
-	return fmt.Sprintf(`"%s"`, name)
+	// Escape any double quotes in the identifier by doubling them
+	escaped := strings.ReplaceAll(name, `"`, `""`)
+	return fmt.Sprintf(`"%s"`, escaped)
 }
 
 // escapeString escapes single quotes in a string
