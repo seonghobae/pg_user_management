@@ -640,6 +640,8 @@ func deleteRoleCmd() {
 		}
 		if err := roleMgr.DeleteRoleWithOptions(opts); err != nil {
 			fmt.Printf("Error deleting role: %v\n", err)
+			fmt.Println("\nHint: Check role members with:")
+			fmt.Printf("  pg_user_admin list-role-members -rolename=%s\n", *roleName)
 			os.Exit(1)
 		}
 		fmt.Printf("Successfully deleted role: %s (with cleanup)\n", *roleName)
