@@ -348,8 +348,13 @@ pg_user_management/
 │   │   └── config.go            # 인증 방법 관리
 │   ├── database/
 │   │   └── connection.go        # 데이터베이스 연결
+│   ├── hba/
+│   │   ├── manager.go           # pg_hba.conf 관리
+│   │   └── reload.go            # PostgreSQL 설정 리로드
 │   ├── permission/
 │   │   └── manager.go           # 권한 관리
+│   ├── role/
+│   │   └── manager.go           # ROLE 관리 (PostgreSQL 표준)
 │   └── user/
 │       └── manager.go           # 사용자 관리
 ├── pkg/

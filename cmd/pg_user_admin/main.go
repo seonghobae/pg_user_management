@@ -871,7 +871,7 @@ func printUsage() {
 	fmt.Println("")
 	fmt.Println("  Role Management (PostgreSQL's native permission system):")
 	fmt.Println("    create-role       Create a new role (group)")
-	fmt.Println("    delete-role       Delete a role")
+	fmt.Println("    delete-role       Delete a role (use --reassign-to or --drop-owned for safe cleanup)")
 	fmt.Println("    list-roles        List all roles")
 	fmt.Println("    grant-role        Grant a role to a user")
 	fmt.Println("    revoke-role       Revoke a role from a user")

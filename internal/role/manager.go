@@ -28,30 +28,27 @@ type RoleOptions struct {
 func (m *Manager) CreateRole(opts RoleOptions) error {
 	// Build the base query with properly quoted identifier
 	query := fmt.Sprintf("CREATE ROLE %s", quoteIdentifier(opts.RoleName))
+	var args []interface{}
 
+	// Add LOGIN or NOLOGIN
 	if opts.CanLogin {
 		query += " LOGIN"
+		// Add password if provided
 		if opts.Password != "" {
-			// Use parameterized query for password to avoid SQL injection and log leakage
 			query += " PASSWORD $1"
-			if opts.IsSuperuser {
-				query += " SUPERUSER"
-			}
-			if _, err := m.db.Exec(query, opts.Password); err != nil {
-				return fmt.Errorf("failed to create role: %w", err)
-			}
-			return nil
+			args = append(args, opts.Password)
 		}
 	} else {
 		query += " NOLOGIN"
 	}
 
+	// Add SUPERUSER if requested
 	if opts.IsSuperuser {
 		query += " SUPERUSER"
 	}
 
-	// Execute without password parameter
-	if _, err := m.db.Exec(query); err != nil {
+	// Execute with args (may be empty)
+	if _, err := m.db.Exec(query, args...); err != nil {
 		return fmt.Errorf("failed to create role: %w", err)
 	}
 
@@ -81,8 +78,8 @@ func (m *Manager) DeleteRole(roleName string) error {
 		return fmt.Errorf("failed to check role members: %w", err)
 	}
 	if memberCount > 0 {
-		return fmt.Errorf("role %s still has %d member(s); revoke them before deletion using revoke-role command",
-			roleName, memberCount)
+		return fmt.Errorf("role %s still has %d member(s); use 'list-role-members -rolename=%s' to see them, then revoke using 'revoke-role' before deletion",
+			roleName, memberCount, roleName)
 	}
 
 	query := fmt.Sprintf("DROP ROLE %s", quoteIdentifier(roleName))
@@ -141,8 +138,8 @@ func (m *Manager) DeleteRoleWithOptions(opts DeleteRoleOptions) error {
 		return fmt.Errorf("failed to check role members: %w", err)
 	}
 	if memberCount > 0 {
-		return fmt.Errorf("role %s still has %d member(s); revoke them before deletion using revoke-role command",
-			opts.RoleName, memberCount)
+		return fmt.Errorf("role %s still has %d member(s); use 'list-role-members -rolename=%s' to see them, then revoke using 'revoke-role' before deletion",
+			opts.RoleName, memberCount, opts.RoleName)
 	}
 
 	// Finally, drop the role
@@ -302,7 +299,11 @@ func (m *Manager) ListUserRoles(username string) ([]string, error) {
 
 // quoteIdentifier quotes an identifier to prevent SQL injection
 // quoteIdentifier returns an identifier quoted for PostgreSQL by doubling any embedded double quotes and enclosing the result in double quotes.
+// Panics if the identifier is empty.
 func quoteIdentifier(name string) string {
+	if name == "" {
+		panic("quoteIdentifier: empty identifier not allowed")
+	}
 	// Escape any double quotes in the identifier by doubling them
 	escaped := strings.ReplaceAll(name, `"`, `""`)
 	return fmt.Sprintf(`"%s"`, escaped)
