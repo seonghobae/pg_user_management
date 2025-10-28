@@ -176,43 +176,51 @@ Superuser 권한 제거:
 ### 8. Role 기반 권한 관리 (PostgreSQL 표준 방식)
 
 **Group role 생성 (NOLOGIN - 권한 그룹용):**
+
 ```bash
 ./pg_user_admin create-role -rolename=app_readonly
 ```
 
 **Role에 권한 부여:**
+
 ```bash
 # 스키마의 모든 테이블에 SELECT 권한 + 모든 함수 실행 권한
 ./pg_user_admin grant -username=app_readonly -schema=public -privileges=SELECT -grant-functions
 ```
 
 **사용자에게 role 부여 (사용자가 role의 모든 권한 상속):**
+
 ```bash
 ./pg_user_admin grant-role -rolename=app_readonly -username=user1
 ./pg_user_admin grant-role -rolename=app_readonly -username=user2
 ```
 
 **사용자로부터 role 회수:**
+
 ```bash
 ./pg_user_admin revoke-role -rolename=app_readonly -username=user1
 ```
 
 **Role 목록 조회:**
+
 ```bash
 ./pg_user_admin list-roles
 ```
 
 **Role의 멤버 조회:**
+
 ```bash
 ./pg_user_admin list-role-members -rolename=app_readonly
 ```
 
 **사용자가 속한 role 조회:**
+
 ```bash
 ./pg_user_admin list-user-roles -username=user1
 ```
 
 **Role 삭제 (안전한 방법):**
+
 ```bash
 # 방법 1: 멤버 revoke 후 삭제 (가장 안전)
 ./pg_user_admin revoke-role -rolename=app_readonly -username=user1
