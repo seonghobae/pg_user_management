@@ -11,7 +11,7 @@ type Manager struct {
 	db *sql.DB
 }
 
-// NewManager creates a new role manager
+// NewManager creates a new Manager with the provided database handle for role operations.
 func NewManager(db *sql.DB) *Manager {
 	return &Manager{db: db}
 }
@@ -301,7 +301,7 @@ func (m *Manager) ListUserRoles(username string) ([]string, error) {
 }
 
 // quoteIdentifier quotes an identifier to prevent SQL injection
-// Escapes embedded double quotes by doubling them per PostgreSQL spec
+// quoteIdentifier returns an identifier quoted for PostgreSQL by doubling any embedded double quotes and enclosing the result in double quotes.
 func quoteIdentifier(name string) string {
 	// Escape any double quotes in the identifier by doubling them
 	escaped := strings.ReplaceAll(name, `"`, `""`)

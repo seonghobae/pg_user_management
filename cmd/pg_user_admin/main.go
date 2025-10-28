@@ -15,6 +15,8 @@ import (
 	"github.com/seonghobae/pg_user_management/pkg/config"
 )
 
+// main is the program entry point for the pg_user_admin CLI.
+// It parses the first command-line argument as a subcommand and dispatches to the corresponding command handler; on missing or unknown commands it prints usage and exits with status 1.
 func main() {
 	if len(os.Args) < 2 {
 		printUsage()
@@ -514,6 +516,8 @@ func hbaListCmd() {
 	}
 }
 
+// hbaReloadCmd reloads the PostgreSQL configuration and verifies that HBA rules are active.
+// It connects to the configured database, triggers a configuration reload, and prints a success message or exits on error.
 func hbaReloadCmd() {
 	_, db, err := connectDB()
 	if err != nil {
@@ -533,6 +537,11 @@ func hbaReloadCmd() {
 	fmt.Println("HBA rules are now active")
 }
 
+// createRoleCmd parses command-line flags for the create-role command, validates inputs,
+// connects to the database, and creates a PostgreSQL role according to the provided options.
+// It requires a non-empty rolename, rejects names starting with "pg_", and requires a password
+// when the role is created with login capability. On validation or creation failure the command
+// prints an error and exits the process; on success it prints the created role type and name.
 func createRoleCmd() {
 	fs := flag.NewFlagSet("create-role", flag.ExitOnError)
 	roleName := fs.String("rolename", "", "Role name to create (required)")
@@ -588,6 +597,11 @@ func createRoleCmd() {
 	fmt.Printf("Successfully created %s: %s\n", roleType, *roleName)
 }
 
+// deleteRoleCmd parses command-line flags for the delete-role command and deletes the specified PostgreSQL role.
+// It validates required inputs and prevents reassigning objects to the same role being removed. If `--reassign-to`
+// or `--drop-owned` are provided, it performs a cleanup deletion that reassigns or drops owned objects; otherwise it
+// performs a standard deletion which may fail if the role owns objects or has members. On errors it prints a message
+// and exits the process with a non-zero status.
 func deleteRoleCmd() {
 	fs := flag.NewFlagSet("delete-role", flag.ExitOnError)
 	roleName := fs.String("rolename", "", "Role name to delete (required)")
@@ -642,6 +656,9 @@ func deleteRoleCmd() {
 	}
 }
 
+// listRolesCmd lists PostgreSQL roles and prints a formatted summary to standard output.
+// It connects to the configured database, retrieves roles via the role manager, and prints each role's name, whether it can log in, whether it is a superuser, and its connection limit.
+// If a connection or listing error occurs the function prints the error and exits the process with status 1.
 func listRolesCmd() {
 	_, db, err := connectDB()
 	if err != nil {
@@ -669,6 +686,12 @@ func listRolesCmd() {
 	}
 }
 
+// grantRoleCmd parses command-line flags and grants a PostgreSQL role to a user.
+// 
+// It requires the `-rolename` and `-username` flags, validates their presence,
+// establishes a database connection, and uses the role manager to grant the
+// specified role to the specified user. On error it prints a message and exits;
+// on success it prints a confirmation.
 func grantRoleCmd() {
 	fs := flag.NewFlagSet("grant-role", flag.ExitOnError)
 	roleName := fs.String("rolename", "", "Role name to grant (required)")
@@ -699,6 +722,10 @@ func grantRoleCmd() {
 	fmt.Printf("Successfully granted role %s to user %s\n", *roleName, *username)
 }
 
+// revokeRoleCmd revokes a PostgreSQL role from a specified user using command-line flags.
+// The command requires the "rolename" and "username" flags; it connects to the database,
+// attempts the revocation, exits with a non-zero status and prints an error on failure,
+// and prints a confirmation message on success.
 func revokeRoleCmd() {
 	fs := flag.NewFlagSet("revoke-role", flag.ExitOnError)
 	roleName := fs.String("rolename", "", "Role name to revoke (required)")
@@ -729,6 +756,8 @@ func revokeRoleCmd() {
 	fmt.Printf("Successfully revoked role %s from user %s\n", *roleName, *username)
 }
 
+// listRoleMembersCmd parses the "rolename" flag, queries the database for members of that role, and prints the member list to stdout.
+// It prints "No members found" when the role has no members. If the required flag is missing or a database operation fails, it prints an error and exits with status 1.
 func listRoleMembersCmd() {
 	fs := flag.NewFlagSet("list-role-members", flag.ExitOnError)
 	roleName := fs.String("rolename", "", "Role name (required)")
@@ -767,6 +796,9 @@ func listRoleMembersCmd() {
 	}
 }
 
+// listUserRolesCmd lists roles granted to a specified database user.
+// It parses the "username" flag, validates it, connects to the configured database, queries the user's granted roles, and prints them to stdout.
+// On validation or runtime errors it prints an error message and exits with status 1.
 func listUserRolesCmd() {
 	fs := flag.NewFlagSet("list-user-roles", flag.ExitOnError)
 	username := fs.String("username", "", "Username (required)")
@@ -805,6 +837,9 @@ func listUserRolesCmd() {
 	}
 }
 
+// connectDB creates a Config from the environment and opens a database connection using it.
+// It returns the Config, the connected *database.DB, and any error encountered while creating
+// the configuration or establishing the connection.
 func connectDB() (*config.Config, *database.DB, error) {
 	cfg, err := config.NewConfig()
 	if err != nil {
@@ -819,6 +854,8 @@ func connectDB() (*config.Config, *database.DB, error) {
 	return cfg, db, nil
 }
 
+// printUsage prints the CLI help text describing available commands, examples, and relevant environment variables.
+// The output includes grouped command categories (user, role, permission, and HBA management), example invocations, and environment variable defaults.
 func printUsage() {
 	fmt.Println("PostgreSQL User Management Admin Tool")
 	fmt.Println("")
