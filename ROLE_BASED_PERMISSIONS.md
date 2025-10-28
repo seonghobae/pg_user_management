@@ -313,6 +313,9 @@ BEGIN;
 COMMIT;
 ```
 
+⚠️ **중요: `REASSIGN OWNED`는 현재 데이터베이스에만 적용됩니다**
+- Role이 여러 데이터베이스에 객체를 소유하고 있다면, 각 데이터베이스에 연결해서 실행해야 합니다
+
 #### 방법 3: 소유 객체를 모두 삭제 (주의!)
 
 ```bash
@@ -323,15 +326,51 @@ COMMIT;
 이 방법은 다음 SQL을 실행합니다:
 ```sql
 BEGIN;
-  DROP OWNED BY app_readonly;
+  DROP OWNED BY app_readonly CASCADE;
   DROP ROLE app_readonly;
 COMMIT;
 ```
+
+⚠️ **중요: 데이터베이스별 작업**
+- `REASSIGN OWNED`와 `DROP OWNED`는 **현재 데이터베이스에만 적용**됩니다
+- Role이 여러 데이터베이스에 객체를 소유하고 있다면, 각 데이터베이스에 연결해서 실행해야 합니다
+- Role 삭제(`DROP ROLE`)는 전역 작업이므로 한 번만 실행하면 됩니다
 
 **주의사항:**
 - 방법 1이 가장 안전합니다
 - 방법 2는 객체를 보존하면서 소유권을 이전합니다
 - 방법 3은 모든 객체를 삭제하므로 주의해서 사용하세요
+
+#### 완전한 삭제 시퀀스 (방법 2 + 방법 3 결합)
+
+만약 일부 객체는 재할당하고 나머지는 삭제하려면:
+
+```bash
+# 두 옵션을 함께 사용
+./pg_user_admin delete-role -rolename=app_readonly -reassign-to=postgres -drop-owned
+```
+
+이 경우 다음 순서로 실행됩니다:
+
+```sql
+BEGIN;
+  -- 1단계: 소유 객체를 postgres로 재할당
+  REASSIGN OWNED BY app_readonly TO postgres;
+
+  -- 2단계: 남은 권한과 의존성을 CASCADE로 제거
+  DROP OWNED BY app_readonly CASCADE;
+
+  -- 3단계: Role 삭제
+  DROP ROLE app_readonly;
+COMMIT;
+```
+
+**실행 순서:**
+1. `REASSIGN OWNED` - 객체 소유권을 다른 role로 이전
+2. `DROP OWNED CASCADE` - 남은 권한과 의존성 제거 (CASCADE로 종속 객체도 처리)
+3. `DROP ROLE` - Role 삭제
+
+⚠️ **데이터베이스 범위:** 1-2단계는 현재 데이터베이스에만 적용, 3단계는 전역 작업
 
 ## Best Practices
 
