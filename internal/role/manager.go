@@ -305,6 +305,7 @@ func quoteIdentifier(name string) string {
 		panic("quoteIdentifier: empty identifier not allowed")
 	}
 	// Escape any double quotes in the identifier by doubling them
-	escaped := strings.ReplaceAll(name, `"`, `""`)
-	return fmt.Sprintf(`"%s"`, escaped)
+	// Note: This replaces each " with "" per PostgreSQL identifier quoting rules
+	escaped := strings.ReplaceAll(name, "\"", "\"\"")
+	return "\"" + escaped + "\""
 }
