@@ -557,9 +557,9 @@ func createRoleCmd() {
 		os.Exit(1)
 	}
 
-	// Reject role names starting with pg_ (PostgreSQL system prefix)
-	if strings.HasPrefix(*roleName, "pg_") {
-		fmt.Printf("Error: role names starting with 'pg_' are reserved for PostgreSQL system roles\n")
+	// Reject role names starting with pg_ (PostgreSQL system prefix, case-insensitive)
+	if strings.HasPrefix(strings.ToLower(*roleName), "pg_") {
+		fmt.Printf("Error: role names starting with 'pg_' (case-insensitive) are reserved for PostgreSQL system roles\n")
 		os.Exit(1)
 	}
 
