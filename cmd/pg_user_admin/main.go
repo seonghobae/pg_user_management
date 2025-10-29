@@ -652,6 +652,7 @@ func deleteRoleCmd() {
 			fmt.Println("\nHint: If the role owns objects or has members, use:")
 			fmt.Println("  --reassign-to <role>  to reassign owned objects")
 			fmt.Println("  --drop-owned          to drop owned objects")
+			fmt.Println("  list-role-members     to find and revoke all members first")
 			os.Exit(1)
 		}
 		fmt.Printf("Successfully deleted role: %s\n", *roleName)
