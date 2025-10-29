@@ -45,44 +45,6 @@ func TestQuoteIdentifier(t *testing.T) {
 	}
 }
 
-func TestEscapeString(t *testing.T) {
-	tests := []struct {
-		name  string
-		input string
-		want  string
-	}{
-		{
-			name:  "Simple string",
-			input: "password",
-			want:  "password",
-		},
-		{
-			name:  "String with single quote",
-			input: "pass'word",
-			want:  "pass''word",
-		},
-		{
-			name:  "String with multiple quotes",
-			input: "it's a 'test'",
-			want:  "it''s a ''test''",
-		},
-		{
-			name:  "Empty string",
-			input: "",
-			want:  "",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := escapeString(tt.input)
-			if got != tt.want {
-				t.Errorf("escapeString() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
 func TestNewManager(t *testing.T) {
 	db, _, err := sqlmock.New()
 	if err != nil {
@@ -125,7 +87,8 @@ func TestManager_CreateUser(t *testing.T) {
 			},
 			setupMock: func() {
 				mock.ExpectExec("SET password_encryption").WillReturnResult(sqlmock.NewResult(0, 0))
-				mock.ExpectExec(`CREATE USER "testuser" WITH PASSWORD 'secret123' NOSUPERUSER LOGIN`).
+				mock.ExpectExec(`CREATE USER "testuser" WITH PASSWORD \$1 NOSUPERUSER LOGIN`).
+					WithArgs("secret123").
 					WillReturnResult(sqlmock.NewResult(0, 1))
 			},
 			expectError: false,
@@ -141,7 +104,8 @@ func TestManager_CreateUser(t *testing.T) {
 			},
 			setupMock: func() {
 				mock.ExpectExec("SET password_encryption").WillReturnResult(sqlmock.NewResult(0, 0))
-				mock.ExpectExec(`CREATE USER "admin" WITH PASSWORD 'admin123' SUPERUSER LOGIN`).
+				mock.ExpectExec(`CREATE USER "admin" WITH PASSWORD \$1 SUPERUSER LOGIN`).
+					WithArgs("admin123").
 					WillReturnResult(sqlmock.NewResult(0, 1))
 			},
 			expectError: false,
@@ -157,7 +121,8 @@ func TestManager_CreateUser(t *testing.T) {
 			},
 			setupMock: func() {
 				mock.ExpectExec("SET password_encryption").WillReturnResult(sqlmock.NewResult(0, 0))
-				mock.ExpectExec(`CREATE USER "nologin" WITH PASSWORD 'pass' NOSUPERUSER NOLOGIN`).
+				mock.ExpectExec(`CREATE USER "nologin" WITH PASSWORD \$1 NOSUPERUSER NOLOGIN`).
+					WithArgs("pass").
 					WillReturnResult(sqlmock.NewResult(0, 1))
 			},
 			expectError: false,
@@ -336,7 +301,8 @@ func TestManager_ModifyUser(t *testing.T) {
 			},
 			setupMock: func() {
 				mock.ExpectExec("SET password_encryption").WillReturnResult(sqlmock.NewResult(0, 0))
-				mock.ExpectExec(`ALTER USER "testuser" WITH PASSWORD 'newpass' NOSUPERUSER LOGIN`).
+				mock.ExpectExec(`ALTER USER "testuser" WITH PASSWORD \$1 NOSUPERUSER LOGIN`).
+					WithArgs("newpass").
 					WillReturnResult(sqlmock.NewResult(0, 1))
 			},
 			expectError: false,
@@ -352,7 +318,8 @@ func TestManager_ModifyUser(t *testing.T) {
 			},
 			setupMock: func() {
 				mock.ExpectExec("SET password_encryption").WillReturnResult(sqlmock.NewResult(0, 0))
-				mock.ExpectExec(`ALTER USER "testuser" WITH PASSWORD 'pass' SUPERUSER LOGIN`).
+				mock.ExpectExec(`ALTER USER "testuser" WITH PASSWORD \$1 SUPERUSER LOGIN`).
+					WithArgs("pass").
 					WillReturnResult(sqlmock.NewResult(0, 1))
 			},
 			expectError: false,

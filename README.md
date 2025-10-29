@@ -14,20 +14,27 @@ PostgreSQL 사용자 및 권한을 관리하기 위한 CLI 도구입니다.
    - MD5
    - SCRAM-SHA-256 (기본값, 권장)
 
-3. **권한 관리**
+3. **Role 기반 권한 관리** ⭐ NEW! (PostgreSQL 표준 방식)
+   - Group role 생성 및 삭제
+   - 사용자에게 role 부여/회수
+   - Role 멤버 조회
+   - 중앙화된 권한 관리
+   - 자세한 내용: [ROLE_BASED_PERMISSIONS.md](ROLE_BASED_PERMISSIONS.md)
+
+4. **권한 관리**
    - 데이터베이스 레벨 권한 (CONNECT)
    - 스키마 레벨 권한 (USAGE)
    - 테이블 레벨 권한 (SELECT, INSERT, UPDATE, DELETE, ALL)
    - 특정 테이블 또는 스키마 내 모든 테이블에 권한 부여
    - 스키마 내 모든 함수에 EXECUTE 권한 자동 부여
 
-4. **pg_hba.conf 관리** ⭐ NEW!
+5. **pg_hba.conf 관리**
    - HBA 규칙 추가/삭제
    - HBA 규칙 목록 조회
    - PostgreSQL 설정 자동 리로드
    - 백업 자동 생성
 
-5. **세부 권한 제어**
+6. **세부 권한 제어**
    - 테이블별 세부 권한 설정
    - 함수에 대한 전체 액세스 권한
 
@@ -166,7 +173,74 @@ Superuser 권한 제거:
 ./pg_user_admin list-privileges -username=myuser
 ```
 
-### 8. pg_hba.conf 관리
+### 8. Role 기반 권한 관리 (PostgreSQL 표준 방식)
+
+**Group role 생성 (NOLOGIN - 권한 그룹용):**
+
+```bash
+./pg_user_admin create-role -rolename=app_readonly
+```
+
+**Role에 권한 부여:**
+
+```bash
+# 스키마의 모든 테이블에 SELECT 권한 + 모든 함수 실행 권한
+./pg_user_admin grant -username=app_readonly -schema=public -privileges=SELECT -grant-functions
+```
+
+**사용자에게 role 부여 (사용자가 role의 모든 권한 상속):**
+
+```bash
+./pg_user_admin grant-role -rolename=app_readonly -username=user1
+./pg_user_admin grant-role -rolename=app_readonly -username=user2
+```
+
+**사용자로부터 role 회수:**
+
+```bash
+./pg_user_admin revoke-role -rolename=app_readonly -username=user1
+```
+
+**Role 목록 조회:**
+
+```bash
+./pg_user_admin list-roles
+```
+
+**Role의 멤버 조회:**
+
+```bash
+./pg_user_admin list-role-members -rolename=app_readonly
+```
+
+**사용자가 속한 role 조회:**
+
+```bash
+./pg_user_admin list-user-roles -username=user1
+```
+
+**Role 삭제 (안전한 방법):**
+
+```bash
+# 방법 1: 멤버 revoke 후 삭제 (가장 안전)
+./pg_user_admin revoke-role -rolename=app_readonly -username=user1
+./pg_user_admin revoke-role -rolename=app_readonly -username=user2
+./pg_user_admin delete-role -rolename=app_readonly
+
+# 방법 2: 소유 객체를 다른 role에 재할당하고 삭제
+./pg_user_admin delete-role -rolename=app_readonly -reassign-to=postgres
+
+# 방법 3: 소유 객체를 모두 삭제하고 role 삭제 (주의!)
+./pg_user_admin delete-role -rolename=app_readonly -drop-owned
+```
+
+💡 **왜 Role을 사용해야 하나요?**
+- ✅ 권한 관리가 중앙화됨 (role에만 권한 부여하면 모든 멤버에 적용)
+- ✅ 새 사용자 추가가 간단함 (grant-role 한 번만)
+- ✅ PostgreSQL 표준 방식
+- 자세한 내용: [ROLE_BASED_PERMISSIONS.md](ROLE_BASED_PERMISSIONS.md)
+
+### 9. pg_hba.conf 관리
 
 HBA 규칙 목록 조회:
 ```bash
@@ -234,6 +308,35 @@ PostgreSQL 설정 리로드 (HBA 규칙 활성화):
 ./pg_user_admin create-user -username=dbadmin -password=secret -superuser -auth=scram-sha-256
 ```
 
+### 시나리오 4: Role 기반 읽기 전용 사용자 그룹 생성 (권장 방식⭐)
+
+```bash
+# 1. Group role 생성 (권한 그룹)
+./pg_user_admin create-role -rolename=app_readonly
+
+# 2. Role에 권한 부여 (한 번만!)
+./pg_user_admin grant -username=app_readonly -database=mydb
+./pg_user_admin grant -username=app_readonly -schema=public -privileges=SELECT -grant-functions
+
+# 3. 사용자 생성
+./pg_user_admin create-user -username=analyst1 -password=secret1 -auth=scram-sha-256
+./pg_user_admin create-user -username=analyst2 -password=secret2 -auth=scram-sha-256
+./pg_user_admin create-user -username=analyst3 -password=secret3 -auth=scram-sha-256
+
+# 4. 사용자들을 role에 추가 (간단!)
+./pg_user_admin grant-role -rolename=app_readonly -username=analyst1
+./pg_user_admin grant-role -rolename=app_readonly -username=analyst2
+./pg_user_admin grant-role -rolename=app_readonly -username=analyst3
+
+# 이제 3명의 analyst가 모두 app_readonly의 권한을 상속받습니다!
+# 새로운 analyst 추가는 grant-role 한 번만 하면 됩니다.
+```
+
+**장점:**
+- 새 analyst 추가: `grant-role` 한 번만
+- 권한 변경: role에만 수정하면 모든 멤버에 적용
+- 권한 구조 명확
+
 ## 보안 고려사항
 
 1. **인증 방법**: 가능하면 SCRAM-SHA-256를 사용하세요 (MD5보다 안전)
@@ -253,8 +356,13 @@ pg_user_management/
 │   │   └── config.go            # 인증 방법 관리
 │   ├── database/
 │   │   └── connection.go        # 데이터베이스 연결
+│   ├── hba/
+│   │   ├── manager.go           # pg_hba.conf 관리
+│   │   └── reload.go            # PostgreSQL 설정 리로드
 │   ├── permission/
 │   │   └── manager.go           # 권한 관리
+│   ├── role/
+│   │   └── manager.go           # ROLE 관리 (PostgreSQL 표준)
 │   └── user/
 │       └── manager.go           # 사용자 관리
 ├── pkg/

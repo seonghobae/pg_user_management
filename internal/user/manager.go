@@ -34,11 +34,8 @@ func (m *Manager) CreateUser(opts UserOptions) error {
 		return fmt.Errorf("failed to set password encryption: %w", err)
 	}
 
-	// Build CREATE USER statement
-	var statements []string
-	query := fmt.Sprintf("CREATE USER %s WITH PASSWORD '%s'",
-		quoteIdentifier(opts.Username),
-		escapeString(opts.Password))
+	// Build CREATE USER statement with parameterized password
+	query := fmt.Sprintf("CREATE USER %s WITH PASSWORD $1", quoteIdentifier(opts.Username))
 
 	if opts.IsSuperuser {
 		query += " SUPERUSER"
@@ -52,13 +49,9 @@ func (m *Manager) CreateUser(opts UserOptions) error {
 		query += " NOLOGIN"
 	}
 
-	statements = append(statements, query)
-
-	// Execute the query
-	for _, stmt := range statements {
-		if _, err := m.db.Exec(stmt); err != nil {
-			return fmt.Errorf("failed to create user: %w", err)
-		}
+	// Execute with parameterized password to avoid logging sensitive data
+	if _, err := m.db.Exec(query, opts.Password); err != nil {
+		return fmt.Errorf("failed to create user: %w", err)
 	}
 
 	return nil
@@ -73,11 +66,13 @@ func (m *Manager) ModifyUser(opts UserOptions) error {
 		}
 	}
 
-	// Build ALTER USER statement
+	// Build ALTER USER statement with parameterized password
 	var alterParts []string
+	var args []interface{}
 
 	if opts.Password != "" {
-		alterParts = append(alterParts, fmt.Sprintf("PASSWORD '%s'", escapeString(opts.Password)))
+		alterParts = append(alterParts, "PASSWORD $1")
+		args = append(args, opts.Password)
 	}
 
 	if opts.IsSuperuser {
@@ -100,7 +95,8 @@ func (m *Manager) ModifyUser(opts UserOptions) error {
 		quoteIdentifier(opts.Username),
 		strings.Join(alterParts, " "))
 
-	if _, err := m.db.Exec(query); err != nil {
+	// Execute with parameterized password to avoid logging sensitive data
+	if _, err := m.db.Exec(query, args...); err != nil {
 		return fmt.Errorf("failed to modify user: %w", err)
 	}
 
@@ -215,7 +211,3 @@ func quoteIdentifier(name string) string {
 	return fmt.Sprintf(`"%s"`, strings.ReplaceAll(name, `"`, `""`))
 }
 
-// escapeString escapes a string for use in SQL
-func escapeString(s string) string {
-	return strings.ReplaceAll(s, "'", "''")
-}
