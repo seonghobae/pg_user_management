@@ -220,12 +220,12 @@ func TestManager_CreateRole(t *testing.T) {
 
 func TestManager_DeleteRole(t *testing.T) {
 	tests := []struct {
-		name         string
-		roleName     string
-		memberCount  int
-		memberError  error
-		deleteError  error
-		wantError    bool
+		name          string
+		roleName      string
+		memberCount   int
+		memberError   error
+		deleteError   error
+		wantError     bool
 		errorContains string
 	}{
 		{
@@ -559,11 +559,11 @@ func TestManager_RevokeRole(t *testing.T) {
 
 func TestManager_ListRoles(t *testing.T) {
 	tests := []struct {
-		name        string
-		mockRows    *sqlmock.Rows
-		mockError   error
-		wantCount   int
-		wantError   bool
+		name      string
+		mockRows  *sqlmock.Rows
+		mockError error
+		wantCount int
+		wantError bool
 	}{
 		{
 			name: "List roles successfully",
@@ -778,4 +778,3 @@ func TestManager_ListUserRoles(t *testing.T) {
 		})
 	}
 }
-
