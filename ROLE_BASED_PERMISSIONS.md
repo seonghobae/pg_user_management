@@ -70,6 +70,7 @@ PostgreSQL의 표준 권한 관리 방식은 **ROLE (역할)** 기반입니다. 
 ```
 
 **생성되는 SQL:**
+
 ```sql
 -- Schema access
 GRANT USAGE ON SCHEMA public TO app_readonly;
@@ -306,12 +307,16 @@ Role 삭제는 다음 3가지 방법이 있습니다:
 ```
 
 이 방법은 다음 SQL을 실행합니다:
+
 ```sql
 BEGIN;
   REASSIGN OWNED BY app_readonly TO postgres;
+  DROP OWNED BY app_readonly CASCADE;
   DROP ROLE app_readonly;
 COMMIT;
 ```
+
+**⚠️ Warning:** The `CASCADE` option will recursively drop dependent objects (for example, views or functions that rely on the role's permissions). Make sure you understand the implications before running this command in production; test in a safe environment or take backups first.
 
 ⚠️ **중요: `REASSIGN OWNED`는 현재 데이터베이스에만 적용됩니다**
 - Role이 여러 데이터베이스에 객체를 소유하고 있다면, 각 데이터베이스에 연결해서 실행해야 합니다
@@ -330,6 +335,10 @@ BEGIN;
   DROP ROLE app_readonly;
 COMMIT;
 ```
+
+**⚠️ Warning:** Running `DROP OWNED BY app_readonly CASCADE;` in this mode will remove every object the role owns in the current
+database. Double-check that this destructive cleanup is intended and consider taking backups or testing in a non-production
+environment first.
 
 ⚠️ **중요: 데이터베이스별 작업**
 - `REASSIGN OWNED`와 `DROP OWNED`는 **현재 데이터베이스에만 적용**됩니다
@@ -377,6 +386,7 @@ COMMIT;
 ### 1. Use Group Roles for Common Permissions
 
 ❌ **Don't do this:**
+
 ```bash
 # 100명의 사용자에게 각각 권한 부여
 for user in user1 user2 ... user100; do
@@ -385,6 +395,7 @@ done
 ```
 
 ✅ **Do this instead:**
+
 ```bash
 # Role에 한 번만 권한 부여
 ./pg_user_admin create-role -rolename=app_users
@@ -456,6 +467,7 @@ Group role은 직접 로그인하지 않아야 합니다:
 ### Step 1: Identify Permission Patterns
 
 현재 사용자들의 권한을 분석:
+
 ```bash
 ./pg_user_admin list-privileges -username=user1
 ./pg_user_admin list-privileges -username=user2
@@ -465,6 +477,7 @@ Group role은 직접 로그인하지 않아야 합니다:
 ### Step 2: Create Roles Based on Patterns
 
 공통 권한 패턴을 role로 생성:
+
 ```bash
 ./pg_user_admin create-role -rolename=pattern1_readonly
 ./pg_user_admin create-role -rolename=pattern2_readwrite
@@ -487,6 +500,7 @@ Group role은 직접 로그인하지 않아야 합니다:
 ### Step 5: (Optional) Revoke Direct Permissions
 
 기존 직접 권한을 제거하고 role 권한만 사용:
+
 ```bash
 ./pg_user_admin revoke -username=user1 -schema=public -privileges=SELECT
 # Now user1 only has permissions through pattern1_readonly role

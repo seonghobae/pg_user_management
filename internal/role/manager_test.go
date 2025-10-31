@@ -2,6 +2,7 @@ package role
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
@@ -219,12 +220,12 @@ func TestManager_CreateRole(t *testing.T) {
 
 func TestManager_DeleteRole(t *testing.T) {
 	tests := []struct {
-		name         string
-		roleName     string
-		memberCount  int
-		memberError  error
-		deleteError  error
-		wantError    bool
+		name          string
+		roleName      string
+		memberCount   int
+		memberError   error
+		deleteError   error
+		wantError     bool
 		errorContains string
 	}{
 		{
@@ -299,7 +300,7 @@ func TestManager_DeleteRole(t *testing.T) {
 			}
 
 			if tt.wantError && tt.errorContains != "" {
-				if err == nil || !contains(err.Error(), tt.errorContains) {
+				if err == nil || !strings.Contains(err.Error(), tt.errorContains) {
 					t.Errorf("DeleteRole() error = %v, want error containing %v", err, tt.errorContains)
 				}
 			}
@@ -422,7 +423,7 @@ func TestManager_DeleteRoleWithOptions(t *testing.T) {
 			}
 
 			if tt.wantError && tt.errorContains != "" {
-				if err == nil || !contains(err.Error(), tt.errorContains) {
+				if err == nil || !strings.Contains(err.Error(), tt.errorContains) {
 					t.Errorf("DeleteRoleWithOptions() error = %v, want error containing %v", err, tt.errorContains)
 				}
 			}
@@ -558,11 +559,11 @@ func TestManager_RevokeRole(t *testing.T) {
 
 func TestManager_ListRoles(t *testing.T) {
 	tests := []struct {
-		name        string
-		mockRows    *sqlmock.Rows
-		mockError   error
-		wantCount   int
-		wantError   bool
+		name      string
+		mockRows  *sqlmock.Rows
+		mockError error
+		wantCount int
+		wantError bool
 	}{
 		{
 			name: "List roles successfully",
@@ -776,18 +777,4 @@ func TestManager_ListUserRoles(t *testing.T) {
 			}
 		})
 	}
-}
-
-// Helper function to check if a string contains a substring
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(substr) == 0 || (len(s) > 0 && len(substr) > 0 && stringContains(s, substr)))
-}
-
-func stringContains(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
 }
