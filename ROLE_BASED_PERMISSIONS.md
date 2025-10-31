@@ -70,6 +70,7 @@ PostgreSQL의 표준 권한 관리 방식은 **ROLE (역할)** 기반입니다. 
 ```
 
 **생성되는 SQL:**
+
 ```sql
 -- Schema access
 GRANT USAGE ON SCHEMA public TO app_readonly;
@@ -379,6 +380,7 @@ COMMIT;
 ### 1. Use Group Roles for Common Permissions
 
 ❌ **Don't do this:**
+
 ```bash
 # 100명의 사용자에게 각각 권한 부여
 for user in user1 user2 ... user100; do
@@ -387,6 +389,7 @@ done
 ```
 
 ✅ **Do this instead:**
+
 ```bash
 # Role에 한 번만 권한 부여
 ./pg_user_admin create-role -rolename=app_users
@@ -458,6 +461,7 @@ Group role은 직접 로그인하지 않아야 합니다:
 ### Step 1: Identify Permission Patterns
 
 현재 사용자들의 권한을 분석:
+
 ```bash
 ./pg_user_admin list-privileges -username=user1
 ./pg_user_admin list-privileges -username=user2
@@ -467,6 +471,7 @@ Group role은 직접 로그인하지 않아야 합니다:
 ### Step 2: Create Roles Based on Patterns
 
 공통 권한 패턴을 role로 생성:
+
 ```bash
 ./pg_user_admin create-role -rolename=pattern1_readonly
 ./pg_user_admin create-role -rolename=pattern2_readwrite
@@ -489,6 +494,7 @@ Group role은 직접 로그인하지 않아야 합니다:
 ### Step 5: (Optional) Revoke Direct Permissions
 
 기존 직접 권한을 제거하고 role 권한만 사용:
+
 ```bash
 ./pg_user_admin revoke -username=user1 -schema=public -privileges=SELECT
 # Now user1 only has permissions through pattern1_readonly role
