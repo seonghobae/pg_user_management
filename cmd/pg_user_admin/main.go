@@ -71,6 +71,9 @@ func main() {
 	}
 }
 
+// createUserCmd parses flags for the "create-user" command, validates inputs and authentication method,
+// connects to the database, creates the specified PostgreSQL user with the requested options,
+// and prints the resulting configuration. It prints errors and exits with a non-zero status on failure.
 func createUserCmd() {
 	fs := flag.NewFlagSet("create-user", flag.ExitOnError)
 	username := fs.String("username", "", "Username to create (required)")
@@ -121,6 +124,13 @@ func createUserCmd() {
 	fmt.Printf("  Auth Method: %s\n", method)
 }
 
+// modifyUserCmd modifies an existing PostgreSQL user based on command-line flags.
+// 
+// It parses flags for username, password, superuser/no-superuser, login/no-login,
+// and authentication method; validates required inputs and the auth method;
+// connects to the database; builds a UserOptions value; and invokes the user
+// manager to apply the modifications. On error it prints a message and exits
+// with a non-zero status; on success it prints a confirmation.
 func modifyUserCmd() {
 	fs := flag.NewFlagSet("modify-user", flag.ExitOnError)
 	username := fs.String("username", "", "Username to modify (required)")
@@ -601,7 +611,12 @@ func createRoleCmd() {
 // It validates required inputs and prevents reassigning objects to the same role being removed. If `--reassign-to`
 // or `--drop-owned` are provided, it performs a cleanup deletion that reassigns or drops owned objects; otherwise it
 // performs a standard deletion which may fail if the role owns objects or has members. On errors it prints a message
-// and exits the process with a non-zero status.
+// deleteRoleCmd parses command-line flags and deletes a PostgreSQL role from the configured database.
+// It requires a non-empty rolename, ensures --reassign-to (if provided) is different from the target role,
+// and verifies that the --reassign-to role exists before proceeding. When --reassign-to or --drop-owned is
+// specified, the command performs a safe deletion that reassigns or drops owned objects; otherwise it attempts
+// a simple delete which may fail if the role still owns objects or has members. On error the command prints
+// a helpful message and exits the process with a non-zero status.
 func deleteRoleCmd() {
 	fs := flag.NewFlagSet("delete-role", flag.ExitOnError)
 	roleName := fs.String("rolename", "", "Role name to delete (required)")
@@ -677,7 +692,11 @@ func deleteRoleCmd() {
 
 // listRolesCmd lists PostgreSQL roles and prints a formatted summary to standard output.
 // It connects to the configured database, retrieves roles via the role manager, and prints each role's name, whether it can log in, whether it is a superuser, and its connection limit.
-// If a connection or listing error occurs the function prints the error and exits the process with status 1.
+// listRolesCmd lists PostgreSQL roles and prints their attributes to stdout.
+// It connects to the configured database, retrieves role records, and prints each
+// role's name, login capability, superuser status, and connection limit.
+// If a connection or listing error occurs the function prints the error and exits
+// the process with status 1.
 func listRolesCmd() {
 	_, db, err := connectDB()
 	if err != nil {
@@ -874,7 +893,8 @@ func connectDB() (*config.Config, *database.DB, error) {
 }
 
 // printUsage prints the CLI help text describing available commands, examples, and relevant environment variables.
-// The output includes grouped command categories (user, role, permission, and HBA management), example invocations, and environment variable defaults.
+// printUsage prints the command-line help and usage information for the CLI tool.
+// It shows available commands grouped by category, example invocations, and relevant environment variable defaults.
 func printUsage() {
 	fmt.Println("PostgreSQL User Management Admin Tool")
 	fmt.Println("")
