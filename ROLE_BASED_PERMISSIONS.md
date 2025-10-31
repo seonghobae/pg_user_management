@@ -316,6 +316,8 @@ BEGIN;
 COMMIT;
 ```
 
+**⚠️ Warning:** The `CASCADE` option will recursively drop dependent objects (for example, views or functions that rely on the role's permissions). Make sure you understand the implications before running this command in production; test in a safe environment or take backups first.
+
 ⚠️ **중요: `REASSIGN OWNED`는 현재 데이터베이스에만 적용됩니다**
 - Role이 여러 데이터베이스에 객체를 소유하고 있다면, 각 데이터베이스에 연결해서 실행해야 합니다
 

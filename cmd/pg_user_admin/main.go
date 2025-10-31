@@ -102,11 +102,11 @@ func createUserCmd() {
 
 	userMgr := user.NewManager(db.DB)
 	opts := user.UserOptions{
-		Username:   *username,
-		Password:   *password,
+		Username:    *username,
+		Password:    *password,
 		IsSuperuser: *isSuperuser,
-		CanLogin:   *canLogin,
-		AuthMethod: method,
+		CanLogin:    *canLogin,
+		AuthMethod:  method,
 	}
 
 	if err := userMgr.CreateUser(opts); err != nil {
@@ -170,11 +170,11 @@ func modifyUserCmd() {
 	}
 
 	opts := user.UserOptions{
-		Username:   *username,
-		Password:   *password,
+		Username:    *username,
+		Password:    *password,
 		IsSuperuser: superuser,
-		CanLogin:   login,
-		AuthMethod: method,
+		CanLogin:    login,
+		AuthMethod:  method,
 	}
 
 	if err := userMgr.ModifyUser(opts); err != nil {
@@ -640,7 +640,7 @@ func deleteRoleCmd() {
 			os.Exit(1)
 		}
 		if !exists {
-			fmt.Printf("Error: target role %s does not exist\n", *reassignTo)
+			fmt.Printf("Error: target role '%s' does not exist (note: role names are case-sensitive)\n", *reassignTo)
 			fmt.Println("\nHint: Create the role first or choose an existing role:")
 			fmt.Println("  pg_user_admin list-roles")
 			os.Exit(1)
@@ -706,7 +706,7 @@ func listRolesCmd() {
 }
 
 // grantRoleCmd parses command-line flags and grants a PostgreSQL role to a user.
-// 
+//
 // It requires the `-rolename` and `-username` flags, validates their presence,
 // establishes a database connection, and uses the role manager to grant the
 // specified role to the specified user. On error it prints a message and exits;
