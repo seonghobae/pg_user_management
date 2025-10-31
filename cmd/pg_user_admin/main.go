@@ -631,6 +631,22 @@ func deleteRoleCmd() {
 
 	roleMgr := role.NewManager(db.DB)
 
+	// If reassign-to is specified, verify that the target role exists
+	if *reassignTo != "" {
+		var exists bool
+		checkQuery := "SELECT EXISTS(SELECT 1 FROM pg_roles WHERE rolname = $1)"
+		if err := db.DB.QueryRow(checkQuery, *reassignTo).Scan(&exists); err != nil {
+			fmt.Printf("Error checking if role %s exists: %v\n", *reassignTo, err)
+			os.Exit(1)
+		}
+		if !exists {
+			fmt.Printf("Error: target role %s does not exist\n", *reassignTo)
+			fmt.Println("\nHint: Create the role first or choose an existing role:")
+			fmt.Println("  pg_user_admin list-roles")
+			os.Exit(1)
+		}
+	}
+
 	// Use safe deletion if reassign-to or drop-owned is specified
 	if *reassignTo != "" || *dropOwned {
 		opts := role.DeleteRoleOptions{

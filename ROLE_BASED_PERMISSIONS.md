@@ -306,9 +306,11 @@ Role 삭제는 다음 3가지 방법이 있습니다:
 ```
 
 이 방법은 다음 SQL을 실행합니다:
+
 ```sql
 BEGIN;
   REASSIGN OWNED BY app_readonly TO postgres;
+  DROP OWNED BY app_readonly CASCADE;
   DROP ROLE app_readonly;
 COMMIT;
 ```
