@@ -336,6 +336,10 @@ BEGIN;
 COMMIT;
 ```
 
+**⚠️ Warning:** Running `DROP OWNED BY app_readonly CASCADE;` in this mode will remove every object the role owns in the current
+database. Double-check that this destructive cleanup is intended and consider taking backups or testing in a non-production
+environment first.
+
 ⚠️ **중요: 데이터베이스별 작업**
 - `REASSIGN OWNED`와 `DROP OWNED`는 **현재 데이터베이스에만 적용**됩니다
 - Role이 여러 데이터베이스에 객체를 소유하고 있다면, 각 데이터베이스에 연결해서 실행해야 합니다

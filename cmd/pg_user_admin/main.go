@@ -125,7 +125,7 @@ func createUserCmd() {
 }
 
 // modifyUserCmd modifies an existing PostgreSQL user based on command-line flags.
-// 
+//
 // It parses flags for username, password, superuser/no-superuser, login/no-login,
 // and authentication method; validates required inputs and the auth method;
 // connects to the database; builds a UserOptions value; and invokes the user
@@ -655,7 +655,7 @@ func deleteRoleCmd() {
 			os.Exit(1)
 		}
 		if !exists {
-			fmt.Printf("Error: target role '%s' does not exist (note: role names are case-sensitive)\n", *reassignTo)
+			fmt.Printf("Error: target role %q does not exist (note: role names are case-sensitive)\n", *reassignTo)
 			fmt.Println("\nHint: Create the role first or choose an existing role:")
 			fmt.Println("  pg_user_admin list-roles")
 			os.Exit(1)
